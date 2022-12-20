@@ -21,6 +21,9 @@ All of this is orchestrated through [Apache Airflow](https://airflow.apache.org/
 **Pre-requisites**: Docker
 
 - Clone the project and `cd Weather-Data-Pipeline/`
+- Create a `.env` file and write variables based on the values of `sample.env`
+  - Feeling lazy? Simply rename `sample.env` to `.env`
+
 - Build and run. 
   - `docker compose build`
     - **Note:** This is only needed at the first run
