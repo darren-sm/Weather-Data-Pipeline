@@ -33,6 +33,7 @@ def read_isd(filename):
     
     station_id, wban, _ = os.path.basename(filename).split("-")
 
+    logging.info("Reading the content of %s ISD", filename)
     with open(filename, "r", encoding="UTF-8") as f:
         for index, line in enumerate(f, start = 1):
             # Check if each line follows the set Data Format (each line must occupy 61 positions)
