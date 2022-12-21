@@ -1,5 +1,7 @@
 FROM apache/airflow:2.3.0
-WORKDIR /opt/airflow
+
+ENV AIRFLOW_HOME=/opt/airflow
+WORKDIR $AIRFLOW_HOME
 
 # Copy and install Python dependencies
 COPY requirements.txt .

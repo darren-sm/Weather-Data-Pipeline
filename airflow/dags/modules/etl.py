@@ -1,12 +1,27 @@
 import pandas as pd
-import isd_io
+from modules import isd_io
+from modules import noaa_isd
+import logging
 import numpy as np
+from datetime import datetime, timedelta
 
+def _get_daily_list(folder_objects):
+    for index, obj in enumerate(folder_objects):
+        yesterday = datetime.now() - timedelta(hours=24)
+        # Check if the object's last modified date is more than 24 hours ago
+        if yesterday < obj.last_modified.replace(tzinfo=None):            
+            yield obj
+    logging.info("Found %s objects modified within the last 24 hours since today %s", index + 1, datetime.now().strftime("%Y-%m-%d %H:%M"))
 
-def download_data(list_of_bucket_files):
-    # list_of_bucket_files is provided in individual dags. History dag will fetch all while daily dag will fetch only objects which are not older than 24 hours
-    # Use multi-threading to download the files to f"{airflow_dir}/data/raw/year/flat_file"
-    pass
+def download_data(year, category = "historical"):
+    list_of_objects = noaa_isd.list_object_keys(f"isd-lite/data/{year}/")
+    if category == "daily":
+        logging.info("Category set to daily. Now filtering the list of objects to items modified within the last 24 hours since today %s", datetime.now().strftime("%Y-%m-%d %H:%M"))
+        list_of_objects = _get_daily_list(list_of_objects)
+    # object_keys = (obj.key for obj in list_of_objects)
+    object_keys = (obj.key for index, obj in enumerate(list_of_objects) if index < 5)
+    noaa_isd.download_multiple(object_keys)    
+    logging.info("All objects for year %s retrieved from %s and saved to %s local directory", year, f"isd-lite/data/{year}/", f"airflow/data/raw/{year}/")
 
 def _get_sky_condition(key):
     """
@@ -47,8 +62,8 @@ def _get_sky_condition(key):
     return mapping[int(key)]
 
 def transform(filename):
-    # Create a generator for reading the content of 888890-99999-2022 flat file
-    file_data = isd_io.read_isd("temp/888890-99999-2022") # use filename in read_isd (e.g. f"{airflow_dir}/data/raw/year/flat_file")
+    # Create a generator for reading the content of flat file
+    file_data = isd_io.read_isd(filename)
 
     # Create a pandas dataframe from the generator
     df = pd.DataFrame(file_data)
@@ -70,7 +85,8 @@ def transform(filename):
     df['sky_condition'] = df['sky_condition'].apply(lambda x: _get_sky_condition(x) if pd.notnull(x) else x)
 
     # Save in f"{airflow_dir}/data/clean/year/station_id.csv"
+    df.to_csv(f"{filename}.csv", encoding='utf-8', index=False)
 
 def upsert(filename):
     
-    pass
+    print("Upsert the local CSV file to PostgreSQL database")
