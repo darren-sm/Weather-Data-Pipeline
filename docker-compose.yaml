@@ -11,6 +11,7 @@ x-common:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs    
     - /var/run/docker.sock:/var/run/docker.sock
+    - ./airflow/data:/opt/airflow/data
 
 x-depends-on:
   &depends-on
@@ -33,7 +34,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./airflow/data:/var/lib/postgresql/data
+      - ./airflow/backend:/var/lib/postgresql/data
 
   app-db:
     image: postgres:13   
