@@ -2,8 +2,29 @@ import datetime
 import logging 
 import os
 
-
 def _parse_value(value, category):
+    """
+    Validate the value of weather record on a given category. Values must be in reasonable range. Range is made up based on the current world record + 40% allowance.
+
+    Parameter:
+    ----------
+    value: float        
+    category: string
+        Weather category (e.g. air temperature, pressure, dew point, etc.)
+
+    Returns:
+    ----------
+    None if value is missing (-9999 in raw file) or beyond the reasonable range else return the value as is
+
+    Examples:
+    ----------
+    >>> # Validate the given air temperature 
+    >>> _parse_value(-9999, "air_temperature")
+    None
+    >>> # Validate the given dew point
+    >>> _parse_value(20.1, "dew_point")
+    20.1
+    """
     # Parsing the value for numerical records including Air Temperature, Dew Point Temperature, Sea Level Pressure, Wind Speed, One hour precipitation, and Six hour precipitation
     reasonable_ranges = {
         # I am only making up these numbers based on the set bounds or current world records + 40% allowance for future record breakers
@@ -26,9 +47,27 @@ def _parse_value(value, category):
         
 def read_isd(filename):
     """
+    Reads a local text-based flat file containing the raw hourly weather records. 
+
+    Parameter
+    ---------
+    filename: string
+        Name of the flat file containing the raw weather data
+    
     Yields
     ---------
-    dictionary
+    dictionary containing weather categories and their values. 
+
+    Example
+    ---------
+    >>> file_data = read_isd("data/raw/2022/010010-99999-2022")
+    >>> print(file_data)
+    {
+        "station_id": "010010-99999",
+        "current_date": datetime.date(2022, 01, 01)
+        "air_temperature": 40,
+        ...
+    }
     """
     
     station_id, wban, _ = os.path.basename(filename).split("-")
