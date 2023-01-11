@@ -42,7 +42,10 @@ def list_object_keys(prefix, bucket = PUBLIC_BUCKET):
         logging.info("Generating the list of all the objects in %s folder", prefix)
         for index, obj in enumerate(bucket.objects.filter(Prefix=prefix)):
             yield obj
-        logging.info("Found %s objects in %s folder", index + 1, prefix)
+        if 'index' in locals():
+            logging.info("Found %s objects in %s folder", index + 1, prefix)
+        else:
+            logging.info("No object found in %s folder", prefix)
     except ClientError as ce:
         logging.error("ERROR: %s", ce)
 
@@ -87,7 +90,7 @@ def _download_file(object_key, directory = None, local_name = None, bucket = PUB
 
     # Create raw data directory if it does not exist
     if not os.path.exists(directory):
-        logging.debug("Folder for year %s raw data not found. Creating %s now", year, directory)
+        logging.info("Folder for year %s raw data not found. Creating %s now", year, directory)
         os.makedirs(directory)
 
     # Download s3 object 

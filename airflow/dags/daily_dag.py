@@ -10,13 +10,16 @@ from datetime import timedelta, datetime
 import logging
 
 
+
 def extract_task(execution_date):    
     """
     Download the objects modified within the last 24 hours inside an S3 bucket folder of current year.    
     """
     start = datetime.now()
     year = execution_date.strftime('%Y')
-    etl.download_data(year, category = "daily")
+    # etl.download_data(year, category = "daily")
+    logging.info(f"Starting task 1 (Downloading object archives) @ {datetime.today()}")
+    etl.download_data("2022", category = "daily")
     logging.info("Finished extract_task. All downloads saved to airflow/data/raw/%s. Task took up %s seconds", year, (datetime.now() - start).seconds)
 
 def transform_task():
@@ -27,6 +30,7 @@ def transform_task():
     # for year in airflow_dir/data/raw/
     # for file in year folder
     # Use modules.etl.transform(file)
+    print("Hello from task 3 (Python)")
     pass
 
 def upsert_task():
@@ -57,7 +61,8 @@ with local_workflow:
 
     task2 = BashOperator(
         task_id = "ExtractArchive",
-        bash_command = 'echo "Extract gz files from data/raw. (? Use XCOM to fetch the list of gz files). Remove .gz after extracting"'
+        # bash_command = 'echo "Path to raw data files ${AIRFLOW_HOME:-/opt/airflow}/data/raw/{{ execution_date.strftime(\'%Y\') }}"'
+        bash_command = 'echo Found $(eval "find ${AIRFLOW_HOME:-/opt/airflow}/data/raw/2022 -name \'*.gz\' | wc -l") .gz archives in /raw/2022 folder. Extracting them all now. && gunzip -fv ${AIRFLOW_HOME:-/opt/airflow}/data/raw/2022/*.gz'
     )
 
     task3 = PythonOperator(
