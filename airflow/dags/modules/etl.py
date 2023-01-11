@@ -19,12 +19,17 @@ def _get_daily_list(folder_objects):
     S3.Object
         Objects modified within the last 24 hours
     """
+    modified_objects = 0
     for index, obj in enumerate(folder_objects):        
         # Check if the object's last modified date is more than 24 hours ago
         yesterday = datetime.now() - timedelta(hours=24)
         if yesterday < obj.last_modified.replace(tzinfo=None):            
+            modified_objects += 1
             yield obj
-    logging.info("Found %s objects modified within the last 24 hours since today %s", index + 1, datetime.now().strftime("%Y-%m-%d %H:%M"))
+    if 'index' in locals():
+        logging.info("Found %s / %s objects modified within the last 24 hours since today %s", modified_objects, index + 1, datetime.now().strftime("%Y-%m-%d %H:%M"))
+    else: 
+        logging.info("List of objects empty. No keys for daily data filtered.")
 
 def download_data(year, category = "historical"):
     """
