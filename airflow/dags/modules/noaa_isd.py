@@ -4,6 +4,7 @@
 import os
 import logging
 import concurrent.futures
+from modules.decorator import logger
 
 # Modules to interact with S3 bucket
 import boto3
@@ -101,6 +102,7 @@ def _download_file(object_key, directory = None, local_name = None, bucket = PUB
 
     return filename
 
+@logger
 def download_multiple(list_of_files):
     """
     Download multiple S3 bucket objects at the same time using multi-threading of _download_file function

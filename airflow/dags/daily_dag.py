@@ -7,20 +7,16 @@ from airflow.utils.dates import days_ago
 # External modules
 from modules import etl
 from datetime import timedelta, datetime
-import logging
+from modules.decorator import logger
 
-
-
+@logger
 def extract_task(execution_date):    
     """
     Download the objects modified within the last 24 hours inside an S3 bucket folder of current year.    
     """
-    start = datetime.now()
     year = execution_date.strftime('%Y')
     # etl.download_data(year, category = "daily")
-    logging.info(f"Starting task 1 (Downloading object archives) @ {datetime.today()}")
     etl.download_data("2022", category = "daily")
-    logging.info("Finished extract_task. All downloads saved to airflow/data/raw/%s. Task took up %s seconds", year, (datetime.now() - start).seconds)
 
 def transform_task():
     """

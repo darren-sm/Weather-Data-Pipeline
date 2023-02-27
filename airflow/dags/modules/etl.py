@@ -1,6 +1,7 @@
 import pandas as pd
 from modules import isd_io
 from modules import noaa_isd
+from modules.decorator import logger
 import logging
 import numpy as np
 from datetime import datetime, timedelta
@@ -31,6 +32,7 @@ def _get_daily_list(folder_objects):
     else: 
         logging.info("List of objects empty. No keys for daily data filtered.")
 
+@logger
 def download_data(year, category = "historical"):
     """
     Download the historical/daily weather data in the form of S3 objects inside the year folder.
@@ -101,6 +103,7 @@ def _get_sky_condition(key):
     }
     return mapping[int(key)]
 
+@logger
 def transform(filename):
     """
     Transform the content of a text-based flat file into day summarization of hourly records. Save the transformed data into a local CSV flat file.
