@@ -1,6 +1,9 @@
 import datetime 
 import logging 
 import os
+from modules.decorator import logger
+import pandas as pd
+import numpy as np
 
 def _parse_value(value, category):
     """
@@ -44,6 +47,72 @@ def _parse_value(value, category):
         logging.warning("Value %s missing or unreasonable exceeding the set range %s", value, (min_val, max_val))
         return None
     return value
+
+
+sky_conditions = {        
+    0: "SKC or CLR",
+    1: "One okta",
+    2: "Two okta",
+    3: "Three okta",
+    4: "Four okta",
+    5: "Five okta",
+    6: "Six okta",
+    7: "Seven okta",
+    8: "Eight okta",
+    9: "Sky obscured, or cloud amount cannot be estimated",
+    10: "Partial obscuration",
+    11: "Thin scattered",
+    12: "Scattered",
+    13: "Dark scattered",
+    14: "Thin broken",
+    15: "Broken",
+    16: "Dark broken",
+    17: "Thin overcast",
+    18: "Overcast",
+    19: "Dark overcast"
+}
+
+@logger
+def transform(direcotory, filename):
+    """
+    Transform the content of a text-based flat file into day summarization of hourly records. Save the transformed data into a local CSV flat file.
+
+    Parameter:
+    ----------
+    filename: string
+        Name of the flat file containing raw hourly weather data.
+
+    Returns:
+    ----------
+    None
+
+    Example:
+    ----------
+    >>> # Transform the content of "010010-99999-2022" flat file inside "data/daw/2022" folder
+    >>> transform("data/raw/2022/010010-99999-2022")
+    >>> # Transformed data saved in "data/clean/2022/010010-99999-2022.csv"
+    """
+    # Create a generator for reading the content of flat file
+    filepath = f"{direcotory}/{filename}"
+    file_data = read_isd(filepath)
+
+    # Using pandas, create a temp count column which contains the no. of weather records in a given day
+    # If a day has only less than 4 records, drop them all    
+    df = pd.DataFrame(file_data)    
+    df['count'] = df.groupby('date')['date'].transform('count')    
+    df = df[df['count'] > 3]    
+    df = df.drop('count', axis = 1)
+
+    # Summarize the dataset using the `mean` aggregate function
+    df = df.groupby(['station_id', 'date']).mean(numeric_only= False).round(2)
+
+    # Map the floor(value) of sky condition column
+    df['sky_condition'] = np.floor(df['sky_condition'])
+    df['sky_condition'] = df['sky_condition'].apply(lambda x: sky_conditions[x] if pd.notnull(x) else x)
+
+    # Save in f"{airflow_dir}/data/clean/year/station_id.csv"
+    df.to_csv(f"{filepath}.csv", encoding='utf-8', index=False)
+
         
 def read_isd(filename):
     """

@@ -3,6 +3,7 @@
 
 import os
 import logging
+import datetime
 import concurrent.futures
 from modules.decorator import logger
 
@@ -49,6 +50,34 @@ def list_object_keys(prefix, bucket = PUBLIC_BUCKET):
             logging.info("No object found in %s folder", prefix)
     except ClientError as ce:
         logging.error("ERROR: %s", ce)
+
+
+def get_daily_list(folder_objects):
+    """
+    Filter the list of object keys from S3 bucket to download for daily data. If the object's last modified date is more than 24 hours ago, skip it. Else, include it in download list.
+
+    Parameter:
+    ----------
+    folder_objects: generator
+        Generator for object keys (string) inside a folder in S3 bucket
+
+    Yields:
+    ----------
+    S3.Object
+        Objects modified within the last 24 hours
+    """
+    modified_objects = 0
+    for index, obj in enumerate(folder_objects):        
+        # Check if the object's last modified date is more than 24 hours ago
+        yesterday = datetime.now() - timedelta(hours=24)
+        if yesterday < obj.last_modified.replace(tzinfo=None):            
+            modified_objects += 1
+            yield obj
+    if 'index' in locals():
+        logging.info("Found %s / %s objects modified within the last 24 hours since today %s", modified_objects, index + 1, datetime.now().strftime("%Y-%m-%d %H:%M"))
+    else: 
+        logging.info("List of objects empty. No keys for daily data filtered.")
+
 
 def _download_file(object_key, directory = None, local_name = None, bucket = PUBLIC_BUCKET):  
     """
