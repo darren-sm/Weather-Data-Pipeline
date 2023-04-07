@@ -8,11 +8,27 @@ This project is a data pipeline for [NOAA Integrated Surface Database (ISD)](htt
 
 ## ETL
 
+```mermaid
+graph LR
+A(DownloadData) 
+A --> B(ExtractArchive)
+B --> C(TransformData)
+C --> D(Upsert CSV)
+B --> X(Count Records)
+X --> Y(Append Count)
+```
+
+
+
 This is an ***Extract-Transform-Load*** project. 
 
-The raw flat files are in `.nc` format which are used to save climate data in multi-dimensions layer including [NetCDF](http://www.agrimetsoft.com/help-netcdf) (Network Common Data Form). A [NetCDF](http://www.agrimetsoft.com/help-netcdf) dataset contains dimensions, variables, and attributes, which all have both a  name and an ID number by which they are identified. 
+The objects in the NOAA bucket are in `.gz` archive format. They are downloaded using the [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) library, the AWS Software Development Kit for Python to interact with AWS services (e.g. Amazon S3). 
 
-[netCDF4](https://unidata.github.io/netcdf4-python/) Python library to access the content of the `.nc` files which contains hourly weather data. Transformation processes include data quality checking and aggregating the datapoints (e.g. average temperature of the day instead of multiple hourly records). Lastly, the clean data is ingested in a PostgreSQL database.
+Inside each archive is the text-based file containing the hourly weather records like temperature, dew point, sea level pressure, and many more. Transformation processes include data quality checking and aggregating the datapoints (e.g. average temperature of the day instead of multiple hourly records). 
+
+Next, the clean data is ingested in a PostgreSQL database.
+
+Also, alongside the transformation of data, the number of records for each file is counted. Then, they are appended to total count to see how much data we hold.
 
 All of this is orchestrated through [Apache Airflow](https://airflow.apache.org/)
 
@@ -35,14 +51,14 @@ All of this is orchestrated through [Apache Airflow](https://airflow.apache.org/
 
 **Further development**:
 
-- If apache airflow is not installed in your machine, do the following for code linting:
-  - Create a virtual environment and activate it
-    - `python -m venv venv`
-    - `source venv/bin/activate`
-  - Install apache airflow
-    - `pip install "apache-airflow=={AIRFLOW-VERSION}" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-{AIRFLOW-VERSION}/constraints-{PYTHON-VERSION}.txt"`
-      - Airflow version in Dockerfile
-      - Python version: `python --version`. Get only the `x.y` in `x.y.z`
-    - Example: `pip install "apache-airflow==2.3.0" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.3.0/constraints-3.8.txt"`
+- Create a virtual environment and activate it
+  - `python -m venv venv`
+  - `source venv/bin/activate`
+- Install the dependencies
+  - `pip install -r requirements.txt`
+- Install Apache Airflow 
+  - `pip install "apache-airflow=={AIRFLOW-VERSION}" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-{AIRFLOW-VERSION}/constraints-{PYTHON-VERSION}.txt"`
+  - Airflow version in Dockerfile and Python version in `python --version`. 
+  - Example: `pip install "apache-airflow==2.3.0" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.3.0/constraints-3.8.txt"`
 
 ​	
