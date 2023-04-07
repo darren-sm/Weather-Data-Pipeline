@@ -55,13 +55,3 @@ def logger(original_function):
         return original_function(*args, **kwargs)       
 
     return wrapper
-
-
-# @logger
-# def greet(name):
-#     import time, random
-#     time.sleep(random.randint(0,2))
-#     return f"Hello {name}"
-
-# greet("Denice")
-# greet(name = "Bob")

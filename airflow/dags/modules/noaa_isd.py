@@ -1,9 +1,11 @@
-# Collection of methods for fetching the object in NOAA ISD bucket
-# https://noaa-isd-pds.s3.amazonaws.com/index.html
+"""
+Collection of methods for listing and downloading the objects in NOAA ISD bucket
+https://noaa-isd-pds.s3.amazonaws.com/index.html
+"""
 
 import os
 import logging
-import datetime
+from datetime import datetime, timedelta
 import concurrent.futures
 from modules.decorator import logger
 
@@ -79,7 +81,7 @@ def get_daily_list(folder_objects):
         logging.info("List of objects empty. No keys for daily data filtered.")
 
 
-def _download_file(object_key, directory = None, local_name = None, bucket = PUBLIC_BUCKET):  
+def _download_file(object_key, bucket = PUBLIC_BUCKET):  
     """
     Download an object in a bucket (defaults to noaa-isd-pds) using boto3 resource.
 
@@ -111,17 +113,10 @@ def _download_file(object_key, directory = None, local_name = None, bucket = PUB
     >>> # file saved in /opt/airflow/data/raw/010010-99999-2022.gz
     """ 
     
-    # Set directory and local name of file to be downloaded
-    if local_name is None:
-        year, local_name = object_key.split("/")[2:]
-        if directory is None:
-            directory = f"{airflow_dir}/data/raw/{year}"
+    # Set directory and local name of file to be downloaded    
+    year, local_name = object_key.split("/")[2:]        
+    directory = f"{airflow_dir}/data/raw/{year}"
     filename = f"{directory}/{local_name}"
-
-    # Create raw data directory if it does not exist
-    if not os.path.exists(directory):
-        logging.info("Folder for year %s raw data not found. Creating %s now", year, directory)
-        os.makedirs(directory)
 
     # Download s3 object 
     try:

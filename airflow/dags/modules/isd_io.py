@@ -1,3 +1,7 @@
+"""
+Methods to read and transform the content of text-based extracted files from ISD archives
+"""
+
 import datetime 
 import logging 
 import os
@@ -73,7 +77,7 @@ sky_conditions = {
 }
 
 @logger
-def transform(direcotory, filename):
+def transform(filename):
     """
     Transform the content of a text-based flat file into day summarization of hourly records. Save the transformed data into a local CSV flat file.
 
@@ -92,9 +96,8 @@ def transform(direcotory, filename):
     >>> transform("data/raw/2022/010010-99999-2022")
     >>> # Transformed data saved in "data/clean/2022/010010-99999-2022.csv"
     """
-    # Create a generator for reading the content of flat file
-    filepath = f"{direcotory}/{filename}"
-    file_data = read_isd(filepath)
+    # Create a generator for reading the content of flat file    
+    file_data = read_isd(filename)
 
     # Using pandas, create a temp count column which contains the no. of weather records in a given day
     # If a day has only less than 4 records, drop them all    
@@ -111,7 +114,7 @@ def transform(direcotory, filename):
     df['sky_condition'] = df['sky_condition'].apply(lambda x: sky_conditions[x] if pd.notnull(x) else x)
 
     # Save in f"{airflow_dir}/data/clean/year/station_id.csv"
-    df.to_csv(f"{filepath}.csv", encoding='utf-8', index=False)
+    df.to_csv(f"{filename}.csv", encoding='utf-8', index=False)
 
         
 def read_isd(filename):
@@ -143,10 +146,10 @@ def read_isd(filename):
 
     logging.info("Reading the content of %s ISD", filename)
     with open(filename, "r", encoding="UTF-8") as f:
-        for index, line in enumerate(f, start = 1):
+        for _, line in enumerate(f, start = 1):
             # Check if each line follows the set Data Format (each line must occupy 61 positions)
             if len(line.strip()) != 61:
-                logging.warning("Line %s has invalid length of %s instead of 61. Skipping this line.", index, len(line.strip()))
+                # logging.warning("Line %s has invalid length of %s instead of 61. Skipping this line.", index, len(line.strip()))
                 continue
             
             # split the line by whitespace
