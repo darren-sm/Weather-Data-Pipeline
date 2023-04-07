@@ -47,8 +47,7 @@ def _parse_value(value, category):
 
     min_val, max_val = reasonable_ranges[category]
     # Missing value = -9999
-    if value == -9999 or min_val > value or max_val < value:
-        logging.warning("Value %s missing or unreasonable exceeding the set range %s", value, (min_val, max_val))
+    if value == -9999 or min_val > value or max_val < value:        
         return None
     return value
 
@@ -77,7 +76,7 @@ sky_conditions = {
 }
 
 @logger
-def transform(filename):
+def transform(filename, year):
     """
     Transform the content of a text-based flat file into day summarization of hourly records. Save the transformed data into a local CSV flat file.
 
@@ -96,25 +95,53 @@ def transform(filename):
     >>> transform("data/raw/2022/010010-99999-2022")
     >>> # Transformed data saved in "data/clean/2022/010010-99999-2022.csv"
     """
-    # Create a generator for reading the content of flat file    
+    # File base name and Airflow directory
+    base_name = os.path.basename(filename)
+    airflow_dir = os.environ.get("AIRFLOW_HOME", "/opt/airflow")    
+    
+    # Create a generator for reading the content of flat file and make a DataFrame out of it
     file_data = read_isd(filename)
+    df = pd.DataFrame(file_data)
 
-    # Using pandas, create a temp count column which contains the no. of weather records in a given day
-    # If a day has only less than 4 records, drop them all    
-    df = pd.DataFrame(file_data)    
-    df['count'] = df.groupby('date')['date'].transform('count')    
-    df = df[df['count'] > 3]    
-    df = df.drop('count', axis = 1)
+    # Get the count of each row by date and station_id then save it to a CSV
+    file_size = df.groupby(['station_id', 'date']).size()
+    file_size.to_csv(f"{airflow_dir}/data/clean/{year}/{base_name}-size.csv", encoding='utf-8', index=True)
 
-    # Summarize the dataset using the `mean` aggregate function
-    df = df.groupby(['station_id', 'date']).mean(numeric_only= False).round(2)
+    # Remove the rows with each date and station_id having less than 4 records
+    df = df.groupby(['station_id', 'date']).filter(lambda x: len(x) > 3).reset_index(drop=True)
+
+    # Get the summarization of data (min, mean, max)
+    df = df.groupby(['station_id', 'date']).agg(
+        air_temperature_avg = ('air_temperature', 'mean'),
+        air_temperature_min = ('air_temperature', 'min'),
+        air_temperature_max = ('air_temperature', 'max'),
+        dew_point_avg = ('dew_point', 'mean'),
+        dew_point_min = ('dew_point', 'min'),
+        dew_point_max = ('dew_point', 'max'),
+        sea_lvl_pressure_avg = ('sea_lvl_pressure', 'mean'),
+        sea_lvl_pressure_min = ('sea_lvl_pressure', 'min'),
+        sea_lvl_pressure_max = ('sea_lvl_pressure', 'max'),
+        wind_direction_avg = ('wind_direction', 'mean'),
+        wind_direction_min = ('wind_direction', 'min'),
+        wind_direction_max = ('wind_direction', 'max'),
+        wind_speed_avg = ('wind_speed', 'mean'),
+        wind_speed_min = ('wind_speed', 'min'),
+        wind_speed_max = ('wind_speed', 'max'),    
+        sky_condition = ('sky_condition', 'mean'),
+        one_hour_precipitation_avg = ('one_hour_precipitation', 'mean'),
+        one_hour_precipitation_min = ('one_hour_precipitation', 'min'),
+        one_hour_precipitation_max = ('one_hour_precipitation', 'max'),
+        six_hour_precipitation_avg = ('six_hour_precipitation', 'mean'),
+        six_hour_precipitation_min = ('six_hour_precipitation', 'min'),
+        six_hour_precipitation_max = ('six_hour_precipitation', 'max')
+    )
 
     # Map the floor(value) of sky condition column
-    df['sky_condition'] = np.floor(df['sky_condition'])
+    df['sky_condition'] = np.round(df['sky_condition'])
     df['sky_condition'] = df['sky_condition'].apply(lambda x: sky_conditions[x] if pd.notnull(x) else x)
 
     # Save in f"{airflow_dir}/data/clean/year/station_id.csv"
-    df.to_csv(f"{filename}.csv", encoding='utf-8', index=False)
+    df.to_csv(f"{airflow_dir}/data/clean/{year}/{base_name}.csv", encoding='utf-8', index=True)
 
         
 def read_isd(filename):

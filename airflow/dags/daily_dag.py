@@ -8,7 +8,7 @@ from airflow.utils.dates import days_ago
 from modules import noaa_isd
 from modules import isd_io
 import logging
-from datetime import timedelta
+from datetime import timedelta, datetime
 import glob
 import os
 
@@ -38,13 +38,21 @@ def transform_task(execution_date):
     Transform the extracted flat file (from downloaded objects in extract_task) into weather daily summaries.
     Save the clean version into a local CSV file inside data/clean/current_year.
     """
-    directory = f"{noaa_isd.airflow_dir}/data/raw/{execution_date.strftime('%Y')}"
-    for filename in glob.glob(f"{directory}/*"):
-        if not filename.endswith("csv"):
-            isd_io.transform(filename)
-            # delete filename 
-    print("Hello from task 3 (Python)")
-    pass
+
+    # Folder to save the clean files. Create it if it does not exist
+    year = execution_date.strftime('%Y')
+    directory = f"{noaa_isd.airflow_dir}/data/clean/{year}"    
+    if not os.path.exists(directory):
+        logging.info("Folder for year %s clean data not found. Creating %s now", year, directory)
+        os.makedirs(directory)
+
+    # List out all the raw files that are not yet cleaned
+    raw_files_directory = f"{noaa_isd.airflow_dir}/data/raw/{execution_date.strftime('%Y')}"
+    for filename in glob.glob(f"{raw_files_directory}/*"):
+        # Transform every non-csv file that are modified within the last 24 hours
+        if not filename.endswith("csv") and datetime.now().timestamp() - os.path.getmtime(filename) <= 86400:
+            isd_io.transform(filename, year)        
+    
 
 def upsert_task():
     """
