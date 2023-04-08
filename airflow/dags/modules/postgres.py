@@ -10,15 +10,17 @@ class PsqlEngine:
 
     def upsert(self, table_name, file):
         with self.__conn:            
-            # Create temp table with the same structure as original `weather` table
-            self.__cursor.execute("""
-            DROP TABLE IF EXISTS tmp_tbl;
-            CREATE TABLE tmp_tbl (LIKE weather INCLUDING ALL);
-            """)
-
-            # Copy the content of file into the tmp_tbl
-            self.__cursor.copy_from(file, "tmp_tbl", sep = "\t", null='')
+            
             if table_name == "weather":
+                # Create temp table with the same structure as original `weather` table
+                self.__cursor.execute("""
+                DROP TABLE IF EXISTS tmp_tbl;
+                CREATE TABLE tmp_tbl AS (SELECT * FROM weather WHERE 1 = 2);
+                """)
+
+                # Copy the content of file into the tmp_tbl
+                self.__cursor.copy_from(file, "tmp_tbl", sep = "\t", null='')
+
                 # Upsert from tmp_tbl into weather table
                 self.__cursor.execute(
                     """
@@ -49,12 +51,30 @@ class PsqlEngine:
                         six_hour_precipitation_max = EXCLUDED.six_hour_precipitation_max;
                     """
                 )
-            elif table_name == "record_count":
-                # upsert the number of record for every day of every station
-                pass
+                self.__cursor.execute("DROP TABLE IF EXISTS tmp_tbl;")
+            elif table_name == "records_count":                
+                # Create temp table with the same structure as original `weather` table
+                self.__cursor.execute("""
+                DROP TABLE IF EXISTS tmp_tbl1;
+                CREATE TABLE tmp_tbl1 AS (SELECT * FROM records_count WHERE 1 = 2);
+                """)
 
-            # Delete the tmp_tbl
-            self.__cursor.execute("DROP TABLE tmp_tbl;")
+                # Copy the content of file into the tmp_tbl
+                self.__cursor.copy_from(file, "tmp_tbl1", sep = ",", null='')
+                
+                # upsert the number of record for every day of every station
+                self.__cursor.execute(
+                    """
+                    INSERT INTO records_count
+                    SELECT * FROM tmp_tbl1 
+                    ON CONFLICT (station_id, date) DO UPDATE SET
+                        count = EXCLUDED.count;
+                    """
+                )
+                # Delete the tmp_tbl
+                self.__cursor.execute("DROP TABLE IF EXISTS tmp_tbl1;")
+
+            
 
     def __del__(self):
         # Close the connection on object deletion
