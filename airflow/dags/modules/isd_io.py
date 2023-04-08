@@ -140,8 +140,8 @@ def transform(filename, year):
     df['sky_condition'] = np.round(df['sky_condition'])
     df['sky_condition'] = df['sky_condition'].apply(lambda x: sky_conditions[x] if pd.notnull(x) else x)
 
-    # Save in f"{airflow_dir}/data/clean/year/station_id.csv"
-    df.to_csv(f"{airflow_dir}/data/clean/{year}/{base_name}.csv", encoding='utf-8', index=True)
+    # Save as TSV file
+    df.to_csv(f"{airflow_dir}/data/clean/{year}/{base_name}.tsv", sep="\t", encoding='utf-8', index=True)
 
         
 def read_isd(filename):
