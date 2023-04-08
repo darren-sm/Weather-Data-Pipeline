@@ -2,3 +2,5 @@ venv
 .env
 airflow/data
 airflow/dags/__pycache__
+postges/
+airflow/backend/
