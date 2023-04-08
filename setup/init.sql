@@ -1,8 +1,29 @@
--- Initialize the application database
-CREATE DATABASE noaaisd;
-
--- create the user for the application database
-CREATE USER appuser with encrypted password 'secretpassword';
-GRANT all privileges ON DATABASE noaaisd to appuser;
-
--- READ the csv file downloaded by station-info.py
+-- weather TABLE
+    --Contains the daily summarization (avg, mean, max) of several weather variables (e.g. temperature)
+CREATE TABLE weather(    
+    station_id char(12) not null ,
+    date date not null,
+	air_temperature_avg decimal (15, 5),
+	air_temperature_min decimal (15, 5),
+	air_temperature_max decimal (15, 5),
+	dew_point_avg decimal (15, 5),
+	dew_point_min decimal (15, 5),
+	dew_point_max decimal (15, 5),
+	sea_lvl_pressure_avg decimal (15, 5),
+	sea_lvl_pressure_min decimal (15, 5),
+	sea_lvl_pressure_max decimal (15, 5),
+	wind_direction_avg decimal (15, 5),
+	wind_direction_min decimal (15, 5),
+	wind_direction_max decimal (15, 5),
+	wind_speed_avg decimal (15, 5),
+	wind_speed_min decimal (15, 5),
+	wind_speed_max decimal (15, 5),
+	sky_condition varchar(64),
+	one_hour_precipitation_avg decimal (15, 5),
+	one_hour_precipitation_min decimal (15, 5),
+	one_hour_precipitation_max decimal (15, 5),
+	six_hour_precipitation_avg decimal (15, 5),
+	six_hour_precipitation_min decimal (15, 5),
+	six_hour_precipitation_max decimal (15, 5),
+    primary key(station_id, date)
+);
