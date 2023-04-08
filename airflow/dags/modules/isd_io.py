@@ -9,6 +9,8 @@ from modules.decorator import logger
 import pandas as pd
 import numpy as np
 
+AIRFLOW_DIR = os.environ.get("AIRFLOW_HOME", "/opt/airflow")    
+
 def _parse_value(value, category):
     """
     Validate the value of weather record on a given category. Values must be in reasonable range. Range is made up based on the current world record + 40% allowance.
@@ -75,6 +77,19 @@ sky_conditions = {
     19: "Dark overcast"
 }
 
+@logger 
+def count_record(filename, year):
+    # File base name and Airflow directory
+    base_name = os.path.basename(filename)    
+    
+    # Create a generator for reading the content of flat file and make a DataFrame out of it
+    file_data = read_isd(filename)
+    df = pd.DataFrame(file_data)
+
+    # Get the count of each row by date and station_id then save it to a CSV
+    file_size = df.groupby(['station_id', 'date']).size()
+    file_size.to_csv(f"{AIRFLOW_DIR}/data/clean/{year}/{base_name}-size.csv", encoding='utf-8', index=True, header=False)
+
 @logger
 def transform(filename, year):
     """
@@ -93,19 +108,14 @@ def transform(filename, year):
     ----------
     >>> # Transform the content of "010010-99999-2022" flat file inside "data/daw/2022" folder
     >>> transform("data/raw/2022/010010-99999-2022")
-    >>> # Transformed data saved in "data/clean/2022/010010-99999-2022.csv"
+    >>> # Transformed data saved in "data/clean/2022/010010-99999-2022.tsv"
     """
     # File base name and Airflow directory
-    base_name = os.path.basename(filename)
-    airflow_dir = os.environ.get("AIRFLOW_HOME", "/opt/airflow")    
+    base_name = os.path.basename(filename)    
     
     # Create a generator for reading the content of flat file and make a DataFrame out of it
     file_data = read_isd(filename)
     df = pd.DataFrame(file_data)
-
-    # Get the count of each row by date and station_id then save it to a CSV
-    file_size = df.groupby(['station_id', 'date']).size()
-    file_size.to_csv(f"{airflow_dir}/data/clean/{year}/{base_name}-size.csv", encoding='utf-8', index=True)
 
     # Remove the rows with each date and station_id having less than 4 records
     df = df.groupby(['station_id', 'date']).filter(lambda x: len(x) > 3).reset_index(drop=True)
@@ -141,7 +151,7 @@ def transform(filename, year):
     df['sky_condition'] = df['sky_condition'].apply(lambda x: sky_conditions[x] if pd.notnull(x) else x)
 
     # Save as TSV file
-    df.to_csv(f"{airflow_dir}/data/clean/{year}/{base_name}.tsv", sep="\t", encoding='utf-8', index=True)
+    df.to_csv(f"{AIRFLOW_DIR}/data/clean/{year}/{base_name}.tsv", sep="\t", encoding='utf-8', index=True)
 
         
 def read_isd(filename):
