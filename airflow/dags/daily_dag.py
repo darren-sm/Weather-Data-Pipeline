@@ -14,6 +14,7 @@ import glob
 import os
 
 YEAR = '{{ execution_date.strftime(\"%Y\") }}'
+TODAY = datetime.now().strftime("%Y-%m-%d")
 CLEAN_CSV_DIRECTORY = f"{noaa_isd.airflow_dir}/data/clean" 
 RAW_FILES_DIRECTORY = f"{noaa_isd.airflow_dir}/data/raw"
 DB_CREDENTIALS = {
@@ -31,7 +32,8 @@ def download_task(execution_date):
     # Get the list of objects to download
     year = execution_date.strftime('%Y')
     list_of_objects = noaa_isd.list_object_keys(f"isd-lite/data/{year}/")
-    object_keys = (obj.key for obj in noaa_isd.get_daily_list(list_of_objects))
+    object_keys = (obj.key for index, obj in enumerate(list_of_objects) if index < 1000)
+    # object_keys = (obj.key for obj in noaa_isd.get_daily_list(list_of_objects))
 
     # Folder to save the raw files. Create it if it does not exist    
     if not os.path.exists(f"{RAW_FILES_DIRECTORY}/{year}"):
@@ -47,26 +49,22 @@ def download_task(execution_date):
     logging.info("All objects for year %s retrieved from %s and saved to %s local directory", year, f"isd-lite/data/{year}/", f"~/data/raw/{year}/")
 
 
-def transform_task(execution_date):
+def transform_task():
     """
     Transform the extracted flat file (from downloaded objects in extract_task) into weather daily summaries.
     Save the clean version into a local CSV file inside data/clean/current_year.
     """    
-    year = execution_date.strftime('%Y')          
-    for filename in glob.glob(f"{RAW_FILES_DIRECTORY}/{year}/*"):
-        # Transform every non-csv file that are modified within the last 24 hours
-        if not filename.endswith("csv") and datetime.now().timestamp() - os.path.getmtime(filename) <= 86400:
-            isd_io.transform(filename, year)        
+    filename = f"{RAW_FILES_DIRECTORY}/{YEAR}/{TODAY}.txt"
+    if os.path.isfile(filename):
+        isd_io.transform(filename, YEAR)    
     
-def count_record_task(execution_date):
+def count_record_task():
     """
     Record the count of data for each day and station
     """    
-    year = execution_date.strftime('%Y')           
-    for filename in glob.glob(f"{RAW_FILES_DIRECTORY}/{year}/*"):
-        # Transform every csv file that are modified within the last 24 hours
-        if not filename.endswith("csv") and datetime.now().timestamp() - os.path.getmtime(filename) <= 86400:
-            isd_io.count_record(filename, year)      
+    filename = f"{RAW_FILES_DIRECTORY}/{YEAR}/{TODAY}.txt"
+    if os.path.isfile(filename):
+        isd_io.count_record(filename, YEAR)
 
 def upsert_weather_task(execution_date):
     """
@@ -136,22 +134,16 @@ with local_workflow:
     task3 = BashOperator(
         task_id = "CombineFiles",
         bash_command = f"""
-        raw_dir={RAW_FILES_DIRECTORY}/{YEAR}
-        clean_dir={CLEAN_CSV_DIRECTORY}/{YEAR}
+        raw_dir={RAW_FILES_DIRECTORY}/{YEAR}        
         
         # count the number of files to be combined
-        echo $(ls -l $raw_dir/$year/* | wc -l) files to be edited
+        echo $(find $raw_dir/$year -type f -mtime -1 | wc -l) files to be edited
 
         # for every file in the directory, add the station_id (modified filename) as prefix at every line
-        for file in $raw_dir/*; do            
-            # extract the filename without "-2023" suffix
-            station_id=$(basename "$file" "-{YEAR}")
-            # add filename as prefix to each line of the file
-            sed -i "s/^/$station_id /g" "$file"
-        done
+        find temp/ -mtime -1 -type f -exec sh -c 'sed -i "s/^/$(basename "{{}}" -{YEAR}) /g" "{{}}"' \;
 
-        echo prefix added. now combining the contents into a single .txt file
-        cat $raw_dir/* >> $clean_dir/{datetime.now().strftime("%Y-%m-%d")}.txt
+        echo prefix added. now combining the contents into a single .txt file        
+        find $raw_dir -type f -mtime -1 -not -name "*.*" -print0 | xargs -0 cat >  $raw_dir/{TODAY}.txt
         """
     )
 
