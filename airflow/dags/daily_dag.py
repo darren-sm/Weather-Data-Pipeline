@@ -13,6 +13,7 @@ from datetime import timedelta, datetime
 import glob
 import os
 
+YEAR = '{{ execution_date.strftime(\"%Y\") }}'
 CLEAN_CSV_DIRECTORY = f"{noaa_isd.airflow_dir}/data/clean" 
 RAW_FILES_DIRECTORY = f"{noaa_isd.airflow_dir}/data/raw"
 DB_CREDENTIALS = {
@@ -127,30 +128,55 @@ with local_workflow:
     task2 = BashOperator(
         task_id = "ExtractArchive",
         # bash_command = 'echo "Path to raw data files ${AIRFLOW_HOME:-/opt/airflow}/data/raw/{{ execution_date.strftime(\'%Y\') }}"'
-        bash_command = 'echo Found $(eval "find ${AIRFLOW_HOME:-/opt/airflow}/data/raw/{{ execution_date.strftime(\"%Y\") }} -name \'*.gz\' | wc -l") .gz archives in /raw/{{ execution_date.strftime(\"%Y\") }} folder. Extracting them all now. && gunzip -fv ${AIRFLOW_HOME:-/opt/airflow}/data/raw/{{ execution_date.strftime(\"%Y\") }}/*.gz'
+        bash_command = f"""
+        echo Found $(eval "find {RAW_FILES_DIRECTORY}/{YEAR} -name \'*.gz\' | wc -l") .gz archives in /raw/{YEAR} folder. Extracting them all now. && gunzip -fv {RAW_FILES_DIRECTORY}/{YEAR}/*.gz
+        """
     )
 
-    task3a = PythonOperator(
-        task_id = "TransformData",
-        python_callable = transform_task
+    task3 = BashOperator(
+        task_id = "CombineFiles",
+        bash_command = f"""
+        raw_dir={RAW_FILES_DIRECTORY}/{YEAR}
+        clean_dir={CLEAN_CSV_DIRECTORY}/{YEAR}
+        
+        # count the number of files to be combined
+        echo $(ls -l $raw_dir/$year/* | wc -l) files to be edited
+
+        # for every file in the directory, add the station_id (modified filename) as prefix at every line
+        for file in $raw_dir/*; do            
+            # extract the filename without "-2023" suffix
+            station_id=$(basename "$file" "-{YEAR}")
+            # add filename as prefix to each line of the file
+            sed -i "s/^/$station_id /g" "$file"
+        done
+
+        echo prefix added. now combining the contents into a single .txt file
+        cat $raw_dir/* >> $clean_dir/{datetime.now().strftime("%Y-%m-%d")}.txt
+        """
     )
 
-    task3b = PythonOperator(
-        task_id = "CountRecords",
-        python_callable = count_record_task
-    )
+    # task3a = PythonOperator(
+    #     task_id = "TransformData",
+    #     python_callable = transform_task
+    # )
 
-    task4a = PythonOperator(
-        task_id = "IngestWeatherData",
-        python_callable = upsert_weather_task
-    )
+    # task3b = PythonOperator(
+    #     task_id = "CountRecords",
+    #     python_callable = count_record_task
+    # )
 
-    task4b = PythonOperator(
-        task_id = "IngestCountData",
-        python_callable = upsert_weather_task
-    )
+    # task4a = PythonOperator(
+    #     task_id = "IngestWeatherData",
+    #     python_callable = upsert_weather_task
+    # )
+
+    # task4b = PythonOperator(
+    #     task_id = "IngestCountData",
+    #     python_callable = upsert_weather_task
+    # )
 
     # Download the objects (archives) > Extract the files containing raw weather records > Transform the raw data and save to CSV file > Upsert CSV to PostgreSQL database
-    task1 >> task2 >> [task3a, task3b]
-    task3a >> task4a
-    task3b >> task4b
+    task1 >> task2 >> task3
+    # task1 >> task2 >> [task3a, task3b]
+    # task3a >> task4a
+    # task3b >> task4b
