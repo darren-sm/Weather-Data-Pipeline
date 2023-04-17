@@ -12,9 +12,10 @@ This project is a data pipeline for [NOAA Integrated Surface Database (ISD)](htt
 graph LR
 A(DownloadData) 
 A --> B(ExtractArchive)
-B --> C(TransformData)
-C --> D(Upsert CSV)
-B --> X(Count Records)
+B --> C(ConcatData)
+C --> D(TransformData)
+D --> E(Upsert CSV)
+C --> X(Count Records)
 X --> Y(Append Count)
 ```
 
@@ -24,7 +25,9 @@ This is an ***Extract-Transform-Load*** project.
 
 The objects in the NOAA bucket are in `.gz` archive format. They are downloaded using the [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) library, the AWS Software Development Kit for Python to interact with AWS services (e.g. Amazon S3). 
 
-Inside each archive is the text-based file containing the hourly weather records like temperature, dew point, sea level pressure, and many more. Transformation processes include data quality checking and aggregating the datapoints (e.g. average temperature of the day instead of multiple hourly records). 
+Inside each archive is the text-based file containing the hourly weather records like temperature, dew point, sea level pressure, and many more. There are around 13,000 files. Manipulating each one by one will cause too much overhead. Thus, they are concatenated by 500 into text files.
+
+Transformation processes include data quality checking and aggregating the datapoints (e.g. average temperature of the day instead of multiple hourly records). 
 
 Next, the clean data is ingested in a PostgreSQL database.
 
