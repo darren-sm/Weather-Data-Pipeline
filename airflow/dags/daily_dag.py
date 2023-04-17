@@ -13,7 +13,7 @@ from datetime import timedelta, datetime
 import glob
 import os
 
-YEAR = '{{ execution_date.strftime(\"%Y\") }}'
+YEAR = '{{ data_interval_start.strftime(\"%Y\") }}'
 TODAY = datetime.now().strftime("%Y-%m-%d")
 CLEAN_CSV_DIRECTORY = f"{noaa_isd.airflow_dir}/data/clean" 
 RAW_FILES_DIRECTORY = f"{noaa_isd.airflow_dir}/data/raw"
@@ -25,14 +25,14 @@ DB_CREDENTIALS = {
 }
 
 # @logger
-def download_task(execution_date):    
+def download_task(data_interval_start):    
     """
     Download the objects modified within the last 24 hours inside an S3 bucket folder of current year.    
     """
     # Get the list of objects to download
-    year = execution_date.strftime('%Y')
+    year = data_interval_start.strftime('%Y')
     list_of_objects = noaa_isd.list_object_keys(f"isd-lite/data/{year}/")
-    object_keys = (obj.key for index, obj in enumerate(list_of_objects) if index < 1000)
+    object_keys = (obj.key for index, obj in enumerate(list_of_objects) if index < 1500)
     # object_keys = (obj.key for obj in noaa_isd.get_daily_list(list_of_objects))
 
     # Folder to save the raw files. Create it if it does not exist    
@@ -49,24 +49,30 @@ def download_task(execution_date):
     logging.info("All objects for year %s retrieved from %s and saved to %s local directory", year, f"isd-lite/data/{year}/", f"~/data/raw/{year}/")
 
 
-def transform_task():
+def transform_task(data_interval_start):
     """
     Transform the extracted flat file (from downloaded objects in extract_task) into weather daily summaries.
     Save the clean version into a local CSV file inside data/clean/current_year.
     """    
-    filename = f"{RAW_FILES_DIRECTORY}/{YEAR}/{TODAY}.txt"
-    if os.path.isfile(filename):
-        isd_io.transform(filename, YEAR)    
+    year = data_interval_start.strftime("%Y")
+    filename = f"{RAW_FILES_DIRECTORY}/{year}/{TODAY}.txt"
+
+    for filename in glob.glob(f"{RAW_FILES_DIRECTORY}/{year}/*.txt"):
+        if TODAY in filename:    
+            logging.info("Transforming stage on target %s", filename)
+            isd_io.transform(filename, year)    
     
-def count_record_task():
+def count_record_task(data_interval_start):
     """
     Record the count of data for each day and station
     """    
-    filename = f"{RAW_FILES_DIRECTORY}/{YEAR}/{TODAY}.txt"
-    if os.path.isfile(filename):
-        isd_io.count_record(filename, YEAR)
+    year = data_interval_start.strftime("%Y")
+    for filename in glob.glob(f"{RAW_FILES_DIRECTORY}/{year}/*.txt"):
+        if TODAY in filename:   
+            logging.info("Counting record stage on target %s", filename)
+            isd_io.count_record(filename, year)
 
-def upsert_weather_task(execution_date):
+def upsert_weather_task(data_interval_start):
     """
     Upsert CSV file into PostgreSQL database.
     """
@@ -74,33 +80,35 @@ def upsert_weather_task(execution_date):
     engine = postgres.PsqlEngine(DB_CREDENTIALS)
 
     # TSV Files (clean data to upsert)
-    year = execution_date.strftime('%Y')
+    year = data_interval_start.strftime('%Y')
     tsv_files = glob.glob(f"{CLEAN_CSV_DIRECTORY}/{year}/*")
 
     # Upsert the clean csv data to weather table
     try:
         for tsv_file in tsv_files:
             # Select only those that contains the weather data (size not in filename) and modified within the last 24 hours
-            if tsv_file.endswith("tsv") and datetime.now().timestamp() - os.path.getmtime(tsv_file) <= 86400:                
+            if all(x in tsv_file for x in ['tsv', TODAY]):        
+                logging.info("Upserting tsv file %s", tsv_file)        
                 with open(tsv_file, 'r') as f:
                     next(f)
                     engine.upsert("weather", f)
     finally:
         del engine
 
-def upsert_count_task(execution_date):
+def upsert_count_task(data_interval_start):
     """
     Append the record count to the database
     """
     # Create a database connection    
     engine = postgres.PsqlEngine(DB_CREDENTIALS)
-    year = execution_date.strftime('%Y')
+    year = data_interval_start.strftime('%Y')
 
     # Upsert the clean csv data to weather table
     try:
         for csv_file in glob.glob(f"{CLEAN_CSV_DIRECTORY}/{year}/*"):
             # Select only those that contains the weather data (size not in filename) and modified within the last 24 hours
-            if csv_file.endswith("csv") and datetime.now().timestamp() - os.path.getmtime(csv_file) <= 86400:                
+            if all(x in csv_file for x in ['csv', TODAY]): 
+                logging.info("Upserting csv file %s", csv_file)              
                 with open(csv_file, 'r') as f:                    
                     engine.upsert("records_count", f)
     finally:
@@ -125,7 +133,7 @@ with local_workflow:
 
     task2 = BashOperator(
         task_id = "ExtractArchive",
-        # bash_command = 'echo "Path to raw data files ${AIRFLOW_HOME:-/opt/airflow}/data/raw/{{ execution_date.strftime(\'%Y\') }}"'
+        # bash_command = 'echo "Path to raw data files ${AIRFLOW_HOME:-/opt/airflow}/data/raw/{{ data_interval_start.strftime(\'%Y\') }}"'
         bash_command = f"""
         echo Found $(eval "find {RAW_FILES_DIRECTORY}/{YEAR} -name \'*.gz\' | wc -l") .gz archives in /raw/{YEAR} folder. Extracting them all now. && gunzip -fv {RAW_FILES_DIRECTORY}/{YEAR}/*.gz
         """
@@ -134,41 +142,69 @@ with local_workflow:
     task3 = BashOperator(
         task_id = "CombineFiles",
         bash_command = f"""
-        raw_dir={RAW_FILES_DIRECTORY}/{YEAR}        
+        raw_dir={RAW_FILES_DIRECTORY}/{YEAR}                
         
         # count the number of files to be combined
-        echo $(find $raw_dir/$year -type f -mtime -1 | wc -l) files to be edited
-
+        echo $(find $raw_dir -type f -mtime -1 | wc -l) files to be edited inside $raw_dir/$year
+        
         # for every file in the directory, add the station_id (modified filename) as prefix at every line
-        find temp/ -mtime -1 -type f -exec sh -c 'sed -i "s/^/$(basename "{{}}" -{YEAR}) /g" "{{}}"' \;
+        # Set the number of processes to use
+        NUM_PROCESSES=4
 
-        echo prefix added. now combining the contents into a single .txt file        
-        find $raw_dir -type f -mtime -1 -not -name "*.*" -print0 | xargs -0 cat >  $raw_dir/{TODAY}.txt
+        # Get the list of files without extensions
+        FILES=$(find $raw_dir -type f -mtime -1 ! -name "*.*")
+
+        # Define the function to add the filename prefix to each line in place
+        function add_prefix {{
+            BASENAME=$(basename $1)
+            PREFIX=$(echo $BASENAME | sed 's/-2023//')
+            sed -i "s/^/${{PREFIX}} /" $1	
+        }}
+
+        # Export the function so it can be used by subprocesses
+        export -f add_prefix
+
+        # Use xargs to run the function in parallel on each file
+        echo "$FILES" | xargs -I{{}} -P $NUM_PROCESSES bash -c 'add_prefix "$@"' _ {{}}
+
+        echo "Adding prefix finished. Now combining every 500 files into a single .txt file"
+              
+        find $raw_dir -maxdepth 1 -type f ! -name "*.*" | sort -V > file_list.txt
+        split -d -l 500 file_list.txt file_list_
+        for file in file_list_*; do
+            echo Combining 500 files into $raw_dir/combined-"${{file##*_}}".txt
+            cat "$file" | xargs -I{{}} bash -c 'cat {{}} >> {RAW_FILES_DIRECTORY}/{YEAR}/{TODAY}-'"${{file##*_}}".txt &            
+        done
+
+        wait
+
+        rm file_list*
+
+        echo "Concatenation finished"        
         """
     )
 
-    # task3a = PythonOperator(
-    #     task_id = "TransformData",
-    #     python_callable = transform_task
-    # )
+    task4a = PythonOperator(
+        task_id = "TransformData",
+        python_callable = transform_task
+    )
 
-    # task3b = PythonOperator(
-    #     task_id = "CountRecords",
-    #     python_callable = count_record_task
-    # )
+    task4b = PythonOperator(
+        task_id = "CountRecords",
+        python_callable = count_record_task
+    )
 
-    # task4a = PythonOperator(
-    #     task_id = "IngestWeatherData",
-    #     python_callable = upsert_weather_task
-    # )
+    task5a = PythonOperator(
+        task_id = "IngestWeatherData",
+        python_callable = upsert_weather_task
+    )
 
-    # task4b = PythonOperator(
-    #     task_id = "IngestCountData",
-    #     python_callable = upsert_weather_task
-    # )
+    task5b = PythonOperator(
+        task_id = "IngestCountData",
+        python_callable = upsert_count_task
+    )
 
-    # Download the objects (archives) > Extract the files containing raw weather records > Transform the raw data and save to CSV file > Upsert CSV to PostgreSQL database
-    task1 >> task2 >> task3
-    # task1 >> task2 >> [task3a, task3b]
-    # task3a >> task4a
-    # task3b >> task4b
+    # Download the objects (archives) > Extract the files containing raw weather records > combine the files into single .txt file >> Transform the raw data and save to CSV file > Upsert CSV to PostgreSQL database
+    task1 >> task2 >> task3 >> [task4a, task4b]    
+    task4a >> task5a
+    task4b >> task5b
