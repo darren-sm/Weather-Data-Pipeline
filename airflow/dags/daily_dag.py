@@ -17,12 +17,6 @@ YEAR = '{{ data_interval_start.strftime(\"%Y\") }}'
 TODAY = datetime.now().strftime("%Y-%m-%d")
 CLEAN_CSV_DIRECTORY = f"{noaa_isd.airflow_dir}/data/clean" 
 RAW_FILES_DIRECTORY = f"{noaa_isd.airflow_dir}/data/raw"
-DB_CREDENTIALS = {
-    "host": "app-db",        
-    "user": os.environ['POSTGRES_USER'],
-    "password": os.environ['POSTGRES_PASSWORD'],
-    "database": os.environ['POSTGRES_DB']
-}
 
 # @logger
 def download_task(data_interval_start):    
@@ -32,17 +26,12 @@ def download_task(data_interval_start):
     # Get the list of objects to download
     year = data_interval_start.strftime('%Y')
     list_of_objects = noaa_isd.list_object_keys(f"isd-lite/data/{year}/")
-    object_keys = (obj.key for index, obj in enumerate(list_of_objects) if index < 1500)
+    object_keys = (obj.key for index, obj in enumerate(list_of_objects) if index < 600)
     # object_keys = (obj.key for obj in noaa_isd.get_daily_list(list_of_objects))
 
-    # Folder to save the raw files. Create it if it does not exist    
-    if not os.path.exists(f"{RAW_FILES_DIRECTORY}/{year}"):
-        logging.info("Folder for year %s raw data not found. Creating %s now", year, f"{RAW_FILES_DIRECTORY}/{year}")
-        os.makedirs(f"{RAW_FILES_DIRECTORY}/{year}")
-    # Folder to save the clean files. 
-    if not os.path.exists(f"{CLEAN_CSV_DIRECTORY}/{year}"):
-        logging.info("Folder for year %s clean data not found. Creating %s now", year, CLEAN_CSV_DIRECTORY)
-        os.makedirs(f"{CLEAN_CSV_DIRECTORY}/{year}")
+    # Folder to save the raw files. Create it if it does not exist        
+    os.makedirs(f"{RAW_FILES_DIRECTORY}/{year}")    
+    os.makedirs(f"{CLEAN_CSV_DIRECTORY}/{year}")
    
     # Download all the objects through multi-threading
     noaa_isd.download_multiple(object_keys)    
@@ -60,24 +49,20 @@ def transform_task(data_interval_start):
     for filename in glob.glob(f"{RAW_FILES_DIRECTORY}/{year}/*.txt"):
         if TODAY in filename:    
             logging.info("Transforming stage on target %s", filename)
-            isd_io.transform(filename, year)    
-    
-def count_record_task(data_interval_start):
-    """
-    Record the count of data for each day and station
-    """    
-    year = data_interval_start.strftime("%Y")
-    for filename in glob.glob(f"{RAW_FILES_DIRECTORY}/{year}/*.txt"):
-        if TODAY in filename:   
-            logging.info("Counting record stage on target %s", filename)
-            isd_io.count_record(filename, year)
+            isd_io.transform(filename, year)        
 
 def upsert_weather_task(data_interval_start):
     """
     Upsert CSV file into PostgreSQL database.
     """
     # Create a database connection    
-    engine = postgres.PsqlEngine(DB_CREDENTIALS)
+    engine = postgres.PsqlEngine({
+        "host": "postgres",        
+        "user": os.environ['POSTGRES_USER'],
+        "password": os.environ['POSTGRES_PASSWORD'],
+        "database": os.environ['POSTGRES_DB']
+    }        
+    )
 
     # TSV Files (clean data to upsert)
     year = data_interval_start.strftime('%Y')
@@ -92,25 +77,6 @@ def upsert_weather_task(data_interval_start):
                 with open(tsv_file, 'r') as f:
                     next(f)
                     engine.upsert("weather", f)
-    finally:
-        del engine
-
-def upsert_count_task(data_interval_start):
-    """
-    Append the record count to the database
-    """
-    # Create a database connection    
-    engine = postgres.PsqlEngine(DB_CREDENTIALS)
-    year = data_interval_start.strftime('%Y')
-
-    # Upsert the clean csv data to weather table
-    try:
-        for csv_file in glob.glob(f"{CLEAN_CSV_DIRECTORY}/{year}/*"):
-            # Select only those that contains the weather data (size not in filename) and modified within the last 24 hours
-            if all(x in csv_file for x in ['csv', TODAY]): 
-                logging.info("Upserting csv file %s", csv_file)              
-                with open(csv_file, 'r') as f:                    
-                    engine.upsert("records_count", f)
     finally:
         del engine
 
@@ -178,33 +144,25 @@ with local_workflow:
 
         wait
 
-        rm file_list*
-
         echo "Concatenation finished"        
+        
+        rm file_list*
+        find $raw_dir -type f -not -name "*.*" -delete
+
+        echo "Original raw files deleted"    
         """
     )
 
-    task4a = PythonOperator(
+    task4 = PythonOperator(
         task_id = "TransformData",
         python_callable = transform_task
     )
 
-    task4b = PythonOperator(
-        task_id = "CountRecords",
-        python_callable = count_record_task
-    )
-
-    task5a = PythonOperator(
+    task5 = PythonOperator(
         task_id = "IngestWeatherData",
         python_callable = upsert_weather_task
     )
 
-    task5b = PythonOperator(
-        task_id = "IngestCountData",
-        python_callable = upsert_count_task
-    )
 
     # Download the objects (archives) > Extract the files containing raw weather records > combine the files into single .txt file >> Transform the raw data and save to CSV file > Upsert CSV to PostgreSQL database
-    task1 >> task2 >> task3 >> [task4a, task4b]    
-    task4a >> task5a
-    task4b >> task5b
+    task1 >> task2 >> task3 >> task4 >> task5
