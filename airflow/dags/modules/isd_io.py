@@ -101,42 +101,42 @@ def transform(filename, year):
     >>> # Transformed data saved in "data/clean/2022/010010-99999-2022.tsv"
     """
     
-    base_name = os.path.basename(filename)    
+    base_name = os.path.splitext(os.path.basename(filename))[0]    
     df = _read_file(filename)
     
     # Remove the rows with each date and station_id having less than 4 records
-    grouped = df.groupby(['station_id', 'date']).hour.count().reset_index()
-    grouped = grouped.rename(columns={'hour': 'Count'})
-    y = dd.merge(df, grouped, on=['station_id', 'date'])
-    y = y[y.Count > 1]
-    df = y.drop('Count', axis=1)
+    grouped = df.groupby(['station_id', 'date']).count()
+    selected = grouped[grouped['hour'] > 3].reset_index()[['station_id', 'date']]
+    result = df.merge(selected, on=['station_id', 'date'], how='inner')
+
     logging.info('Stations and dates having less than 3 records dropped')
 
     # Get the summarization of data (min, mean, max)
-    df = df.compute().groupby(['station_id', 'date']).agg(
-        air_temperature_avg = ('air_temperature', 'mean'),
-        air_temperature_min = ('air_temperature', 'min'),
-        air_temperature_max = ('air_temperature', 'max'),
-        dew_point_avg = ('dew_point', 'mean'),
-        dew_point_min = ('dew_point', 'min'),
-        dew_point_max = ('dew_point', 'max'),
-        sea_lvl_pressure_avg = ('sea_lvl_pressure', 'mean'),
-        sea_lvl_pressure_min = ('sea_lvl_pressure', 'min'),
-        sea_lvl_pressure_max = ('sea_lvl_pressure', 'max'),
-        wind_direction_avg = ('wind_direction', 'mean'),
-        wind_direction_min = ('wind_direction', 'min'),
-        wind_direction_max = ('wind_direction', 'max'),
-        wind_speed_avg = ('wind_speed', 'mean'),
-        wind_speed_min = ('wind_speed', 'min'),
-        wind_speed_max = ('wind_speed', 'max'),    
-        sky_condition = ('sky_condition', 'mean'),
-        one_hour_precipitation_avg = ('one_hour_precipitation', 'mean'),
-        one_hour_precipitation_min = ('one_hour_precipitation', 'min'),
-        one_hour_precipitation_max = ('one_hour_precipitation', 'max'),
-        six_hour_precipitation_avg = ('six_hour_precipitation', 'mean'),
-        six_hour_precipitation_min = ('six_hour_precipitation', 'min'),
-        six_hour_precipitation_max = ('six_hour_precipitation', 'max')
+    df = df.groupby(['station_id', 'date']).agg(
+        air_temperature_avg=('air_temperature', 'mean'),
+        air_temperature_min=('air_temperature', 'min'),
+        air_temperature_max=('air_temperature', 'max'),
+        dew_point_avg=('dew_point', 'mean'),
+        dew_point_min=('dew_point', 'min'),
+        dew_point_max=('dew_point', 'max'),
+        sea_lvl_pressure_avg=('sea_lvl_pressure', 'mean'),
+        sea_lvl_pressure_min=('sea_lvl_pressure', 'min'),
+        sea_lvl_pressure_max=('sea_lvl_pressure', 'max'),
+        wind_direction_avg=('wind_direction', 'mean'),
+        wind_direction_min=('wind_direction', 'min'),
+        wind_direction_max=('wind_direction', 'max'),
+        wind_speed_avg=('wind_speed', 'mean'),
+        wind_speed_min=('wind_speed', 'min'),
+        wind_speed_max=('wind_speed', 'max'),
+        sky_condition=('sky_condition', 'mean'),
+        one_hour_precipitation_avg=('one_hour_precipitation', 'mean'),
+        one_hour_precipitation_min=('one_hour_precipitation', 'min'),
+        one_hour_precipitation_max=('one_hour_precipitation', 'max'),
+        six_hour_precipitation_avg=('six_hour_precipitation', 'mean'),
+        six_hour_precipitation_min=('six_hour_precipitation', 'min'),
+        six_hour_precipitation_max=('six_hour_precipitation', 'max')
     )
+
     
     logging.info("Hourly data summarized")
 
@@ -146,4 +146,4 @@ def transform(filename, year):
 
     # Save as TSV file
     logging.info("Saving output to clean/%s/%s_0.tsv", year, base_name)
-    df.to_csv(f"{AIRFLOW_DIR}/data/clean/{year}/{base_name}.tsv", sep="\t", encoding='utf-8', index=True)
+    df.to_csv(f"{AIRFLOW_DIR}/data/clean/{year}/{base_name}_*.tsv", sep="\t", encoding='utf-8', index=True)
