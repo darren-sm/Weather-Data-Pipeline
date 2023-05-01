@@ -9,38 +9,28 @@ x-common:
     - .env
   volumes:
     - ./airflow/dags:/opt/airflow/dags
-    - ./airflow/logs:/opt/airflow/logs    
-    - /var/run/docker.sock:/var/run/docker.sock
+    - ./airflow/logs:/opt/airflow/logs        
     - ./airflow/data:/opt/airflow/data
+    - /var/run/docker.sock:/var/run/docker.sock
 
 x-depends-on:
   &depends-on
   depends_on:
-    airflow-backend:
+    postgres:
       condition: service_healthy
     airflow-init:
       condition: service_completed_successfully
 
 services:
-  airflow-backend:
-    image: postgres:13
-    container_name: airflow-backend
+  postgres:
+    image: postgres:13   
+    container_name: postgres
     ports:
-      - "5434:5432"
+      - "5432:5432"
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
       interval: 5s
       retries: 5
-    env_file:
-      - .env
-    volumes:
-      - ./airflow/backend:/var/lib/postgresql/data
-
-  app-db:
-    image: postgres:13   
-    container_name: app-db 
-    ports:
-      - "5435:5432"
     env_file:
       - .env
     volumes:      
