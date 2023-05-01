@@ -4,7 +4,6 @@ Methods to read and transform the content of text-based extracted files from ISD
 import os
 from modules.decorator import logger
 import dask.dataframe as dd
-import pandas as pd
 import logging
 
 AIRFLOW_DIR = os.environ.get("AIRFLOW_HOME", "/opt/airflow")    
@@ -70,16 +69,6 @@ def _read_file(filename):
 
 
 
-@logger 
-def count_record(filename, year):
-    
-    base_name = os.path.basename(filename)          
-    df = _read_file(filename)
-
-    # Get the count of each row by date and station_id then save it to a CSV
-    file_size = df.groupby(['station_id', 'date']).size()
-    file_size.to_csv(f"{AIRFLOW_DIR}/data/clean/{year}/{base_name}-size-*.csv", encoding='utf-8', index=True, header=False)
-
 @logger
 def transform(filename, year):
     """
@@ -112,7 +101,8 @@ def transform(filename, year):
     logging.info('Stations and dates having less than 3 records dropped')
 
     # Get the summarization of data (min, mean, max)
-    df = df.groupby(['station_id', 'date']).agg(
+    df = result.groupby(['station_id', 'date']).agg(
+        n_records = ('hour', 'count'),
         air_temperature_avg=('air_temperature', 'mean'),
         air_temperature_min=('air_temperature', 'min'),
         air_temperature_max=('air_temperature', 'max'),
@@ -136,14 +126,14 @@ def transform(filename, year):
         six_hour_precipitation_min=('six_hour_precipitation', 'min'),
         six_hour_precipitation_max=('six_hour_precipitation', 'max')
     )
-
     
     logging.info("Hourly data summarized")
 
     # Map the floor(value) of sky condition column
-    df['sky_condition'] = df['sky_condition'].round()
-    df['sky_condition'] = df['sky_condition'].apply(lambda x: sky_conditions[x] if pd.notnull(x) else x)
+    df['sky_condition'] = df['sky_condition'].round().fillna(-1)
+    df['sky_condition'] = df['sky_condition'].replace(sky_conditions)
 
     # Save as TSV file
+    df = df.astype(str)
     logging.info("Saving output to clean/%s/%s_0.tsv", year, base_name)
-    df.to_csv(f"{AIRFLOW_DIR}/data/clean/{year}/{base_name}_*.tsv", sep="\t", encoding='utf-8', index=True)
+    df.to_csv(f"{AIRFLOW_DIR}/data/clean/{year}/{base_name}.tsv", sep="\t", encoding='utf-8', index=True, single_file = True)
