@@ -24,9 +24,10 @@ class PsqlEngine:
                 # Upsert from tmp_tbl into weather table
                 self.__cursor.execute(
                     """
-                    INSERT INTO weather (station_id, date, air_temperature_avg, air_temperature_min, air_temperature_max, dew_point_avg, dew_point_min, dew_point_max, sea_lvl_pressure_avg, sea_lvl_pressure_min, sea_lvl_pressure_max, wind_direction_avg, wind_direction_min, wind_direction_max, wind_speed_avg, wind_speed_min, wind_speed_max, sky_condition, one_hour_precipitation_avg, one_hour_precipitation_min, one_hour_precipitation_max, six_hour_precipitation_avg, six_hour_precipitation_min, six_hour_precipitation_max)
+                    INSERT INTO weather (station_id, date, n_records, air_temperature_avg, air_temperature_min, air_temperature_max, dew_point_avg, dew_point_min, dew_point_max, sea_lvl_pressure_avg, sea_lvl_pressure_min, sea_lvl_pressure_max, wind_direction_avg, wind_direction_min, wind_direction_max, wind_speed_avg, wind_speed_min, wind_speed_max, sky_condition, one_hour_precipitation_avg, one_hour_precipitation_min, one_hour_precipitation_max, six_hour_precipitation_avg, six_hour_precipitation_min, six_hour_precipitation_max)
                     SELECT * FROM tmp_tbl 
                     ON CONFLICT (station_id, date) DO UPDATE SET
+                        n_records = EXCLUDED.n_records,
                         air_temperature_avg = EXCLUDED.air_temperature_avg,
                         air_temperature_min = EXCLUDED.air_temperature_min,
                         air_temperature_max = EXCLUDED.air_temperature_max,
@@ -52,29 +53,8 @@ class PsqlEngine:
                     """
                 )
                 self.__cursor.execute("DROP TABLE IF EXISTS tmp_tbl;")
-            elif table_name == "records_count":                
-                # Create temp table with the same structure as original `weather` table
-                self.__cursor.execute("""
-                DROP TABLE IF EXISTS tmp_tbl1;
-                CREATE TABLE tmp_tbl1 AS (SELECT * FROM records_count WHERE 1 = 2);
-                """)
-
-                # Copy the content of file into the tmp_tbl
-                self.__cursor.copy_from(file, "tmp_tbl1", sep = ",", null='')
-                
-                # upsert the number of record for every day of every station
-                self.__cursor.execute(
-                    """
-                    INSERT INTO records_count
-                    SELECT * FROM tmp_tbl1 
-                    ON CONFLICT (station_id, date) DO UPDATE SET
-                        count = EXCLUDED.count;
-                    """
-                )
-                # Delete the tmp_tbl
-                self.__cursor.execute("DROP TABLE IF EXISTS tmp_tbl1;")
-
-            
+            else:
+                raise SystemExit(f"ERROR: No `{table_name}` table name found in the database")            
 
     def __del__(self):
         # Close the connection on object deletion
