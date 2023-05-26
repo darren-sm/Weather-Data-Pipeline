@@ -24,7 +24,7 @@ CONN = psycopg2.connect(**{
     "database": os.environ['POSTGRES_DB']
 })
 
-# @logger
+
 def download_task():    
     """
     Download the objects modified within the last 24 hours inside an S3 bucket folder of current year.    
@@ -75,7 +75,7 @@ def ingest(db):
     for filename in glob.glob(f'{RAW_FILES_DIRECTORY}/{YEAR}/*.txt'):
         if TODAY in filename:            
             with open(filename, 'r') as f:
-                logging.info("Now ingesting %s file into `tmp_weather`", filename)
+                logging.info("Now ingesting %s file (%s MB) into `tmp_weather`", filename, round(os.stat(filename).st_size / 1024 / 1024, 2))
                 cursor.copy_from(f, "tmp_weather", sep = ' ', null='-9999')
                 CONN.commit()
 
@@ -123,7 +123,8 @@ def upsert(db):
 
         # Drop temp table
         cursor.execute('DROP TABLE IF EXISTS tmp_weather;')
-        logging.info("`tmp_weather` table deleted")
+        CONN.commit()
+        logging.info("`tmp_weather` table deleted")        
 
     
 
@@ -134,7 +135,8 @@ local_workflow = DAG(
     "DailyData",
     schedule_interval="1 0 * * *", # Run at 00:01 Everyday
     start_date = days_ago(1),    
-    dagrun_timeout=timedelta(minutes=60)
+    dagrun_timeout=timedelta(minutes=60),
+    catchup=False
 )
 
 
