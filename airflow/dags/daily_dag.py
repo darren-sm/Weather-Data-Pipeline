@@ -54,7 +54,7 @@ def ingest(db):
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS tmp_weather(
-                station_id char(12) not null,
+                station_id varchar(14) not null,
                 year integer,
                 month integer,
                 day integer,
