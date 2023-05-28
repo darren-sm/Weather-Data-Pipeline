@@ -115,7 +115,30 @@ def upsert(db):
                 avg(six_hour_precipitation) as six_hour_precipitation_avg, 
                 min(six_hour_precipitation) as six_hour_precipitation_min, 
                 max(six_hour_precipitation) as six_hour_precipitation_max
-            FROM tmp_weather GROUP BY station_id, make_date(year, month,day) HAVING count(hour) > 3;
+            FROM tmp_weather GROUP BY station_id, make_date(year, month,day) HAVING count(hour) > 3
+                ON CONFLICT (station_id, date)
+            DO UPDATE SET
+                n_records = EXCLUDED.n_records,
+                air_temperature_avg = EXCLUDED.air_temperature_avg,
+                air_temperature_min = EXCLUDED.air_temperature_min,
+                air_temperature_max = EXCLUDED.air_temperature_max,
+                dew_point_avg = EXCLUDED.dew_point_avg,
+                dew_point_min = EXCLUDED.dew_point_min,
+                dew_point_max = EXCLUDED.dew_point_max,
+                sea_lvl_pressure_avg = EXCLUDED.sea_lvl_pressure_avg,
+                sea_lvl_pressure_min = EXCLUDED.sea_lvl_pressure_min,
+                sea_lvl_pressure_max = EXCLUDED.sea_lvl_pressure_max,
+                wind_direction = EXCLUDED.wind_direction,
+                wind_speed_avg = EXCLUDED.wind_speed_avg,
+                wind_speed_min = EXCLUDED.wind_speed_min,
+                wind_speed_max = EXCLUDED.wind_speed_max,
+                sky_condition = EXCLUDED.sky_condition,
+                one_hour_precipitation_avg = EXCLUDED.one_hour_precipitation_avg,
+                one_hour_precipitation_min = EXCLUDED.one_hour_precipitation_min,
+                one_hour_precipitation_max = EXCLUDED.one_hour_precipitation_max,
+                six_hour_precipitation_avg = EXCLUDED.six_hour_precipitation_avg,
+                six_hour_precipitation_min = EXCLUDED.six_hour_precipitation_min,
+                six_hour_precipitation_max = EXCLUDED.six_hour_precipitation_max;            
             """
         )
         logging.info("Aggregated data upserted")
