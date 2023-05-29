@@ -6,9 +6,9 @@ This project is a data pipeline for [NOAA Integrated Surface Database (ISD)](htt
 
 ## Dashboard
 
-![demo](assets/out.gif)
+![demo](docs/out.gif)
 
-![dashboard](assets/dashboard.png)
+![dashboard](docs/dashboard.png)
 
 ## ETL
 
