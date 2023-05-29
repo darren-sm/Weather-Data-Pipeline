@@ -1,14 +1,14 @@
 # Weather Data Pipeline
 
-![dashboard](docs/dashboard.png)
+![dag](docs/dag.png)
 
 This project is a data pipeline for [NOAA Integrated Surface Database (ISD)](https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database) which is a part of [NOAA Big Data Program](https://registry.opendata.aws/collab/noaa/). The Integrated Surface Database (ISD) consists of global hourly and synoptic observations compiled from numerous sources into a gzipped fixed width format. It is hosted in multiple Cloud Service Providers, but our target for this project is hosted in AWS S3 that can be found in [this link](https://registry.opendata.aws/noaa-isd/).
 
 ## Dashboard
 
-![](assets/out.gif)
+![demo](assets/out.gif)
 
-![](assets/dashboard.png)
+![dashboard](assets/dashboard.png)
 
 ## ETL
 
