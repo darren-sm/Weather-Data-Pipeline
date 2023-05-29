@@ -175,7 +175,7 @@ with local_workflow:
         task_id = "ExtractArchive",   
         do_xcom_push = False,     
         bash_command = f"""
-        echo Found $(eval "find {RAW_FILES_DIRECTORY}/{YEAR} -name \'*.gz\' | wc -l") .gz archives in /raw/{YEAR} folder. Extracting them all now. && gunzip -fv {RAW_FILES_DIRECTORY}/{YEAR}/*.gz
+        echo Found $(eval "find {RAW_FILES_DIRECTORY}/{YEAR} -name \'*.gz\' | wc -l") .gz archives in /raw/{YEAR} folder. Extracting them all now. && gunzip -fv {RAW_FILES_DIRECTORY}/{YEAR}/*.gz || true
         """
     )
 
@@ -219,7 +219,7 @@ with local_workflow:
         echo "Concatenation finished"     
 
         rm file_list*
-        find {RAW_FILES_DIRECTORY}/{YEAR} -type f -not -name "*.*" -delete
+        find {RAW_FILES_DIRECTORY}/{YEAR} -type f -name "*.gz" -delete
 
         echo "Original raw files deleted"        
         """
