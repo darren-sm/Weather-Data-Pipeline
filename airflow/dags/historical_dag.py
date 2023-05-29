@@ -151,7 +151,7 @@ with local_workflow:
         task_id = "ExtractArchive",
         do_xcom_push = False,
         bash_command= f"""
-        echo Found $(eval "find {RAW_FILES_DIRECTORY}/{year_template} -name \'*.gz\' | wc -l") .gz archives in /raw/{year_template} folder. Extracting them all now. && gunzip -fv {RAW_FILES_DIRECTORY}/{year_template}/*.gz
+        echo Found $(eval "find {RAW_FILES_DIRECTORY}/{year_template} -name \'*.gz\' | wc -l") .gz archives in /raw/{year_template} folder. Extracting them all now. && gunzip -fv {RAW_FILES_DIRECTORY}/{year_template}/*.gz  || true
         """
     )
 
@@ -200,7 +200,7 @@ with local_workflow:
 
         rm file_list*
         
-        find {RAW_FILES_DIRECTORY}/{year_template} -type f -not -name "*.*" -delete
+        find {RAW_FILES_DIRECTORY}/{year_template} -type f -name "*.gz" -delete
         echo "Original raw files deleted"  
         """
     )
