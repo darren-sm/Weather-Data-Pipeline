@@ -1,7 +1,7 @@
 -- weather TABLE
     --Contains the daily summarization (avg, mean, max) of several weather variables (e.g. temperature)
 CREATE TABLE weather(    
-    station_id char(12) not null ,
+    station_id VARCHAR(14) CONSTRAINT check_station_id_length CHECK (LENGTH(station_id) > 11 AND LENGTH(station_id) < 15),
     date date not null,
 	n_records integer,
 	air_temperature_avg decimal (15, 5),
