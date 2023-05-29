@@ -1,37 +1,41 @@
 # Weather Data Pipeline
 
+![dashboard](docs/dashboard.png)
+
 This project is a data pipeline for [NOAA Integrated Surface Database (ISD)](https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database) which is a part of [NOAA Big Data Program](https://registry.opendata.aws/collab/noaa/). The Integrated Surface Database (ISD) consists of global hourly and synoptic observations compiled from numerous sources into a gzipped fixed width format. It is hosted in multiple Cloud Service Providers, but our target for this project is hosted in AWS S3 that can be found in [this link](https://registry.opendata.aws/noaa-isd/).
 
 ## Dashboard
 
-> No dashboard for now. Will include a live link here or screenshot/recording 
+![](assets/out.gif)
+
+![](assets/dashboard.png)
 
 ## ETL
+
+
+
+
 
 ```mermaid
 graph LR
 A(DownloadData) 
 A --> B(ExtractArchive)
-B --> C(ConcatData)
-C --> D(TransformData)
-D --> E(Upsert CSV)
-C --> X(Count Records)
-X --> Y(Append Count)
+B --> C(CombineContent)
+C --> D(IngestTo-tmp-table)
+D --> E(UpsertData)
 ```
 
 
 
-This is an ***Extract-Transform-Load*** project. 
+This is an ***Extract-Load-Transform*** project. 
 
 The objects in the NOAA bucket are in `.gz` archive format. They are downloaded using the [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) library, the AWS Software Development Kit for Python to interact with AWS services (e.g. Amazon S3). 
 
 Inside each archive is the text-based file containing the hourly weather records like temperature, dew point, sea level pressure, and many more. There are around 13,000 files. Manipulating each one by one will cause too much overhead. Thus, they are concatenated by 500 into text files.
 
-Transformation processes include data quality checking and aggregating the datapoints (e.g. average temperature of the day instead of multiple hourly records). 
+The text files will be ingested into a temporary table in PostgreSQL database before being processed. Transformation procedures include aggregating the datapoints (e.g. average temperature of the day instead of multiple hourly records). 
 
-Next, the clean data is ingested in a PostgreSQL database.
-
-Also, alongside the transformation of data, the number of records for each file is counted. Then, they are appended to total count to see how much data we hold.
+An interactive dashboard with Metabase providing real-time visualizations and analytics is also designed.
 
 All of this is orchestrated through [Apache Airflow](https://airflow.apache.org/)
 
