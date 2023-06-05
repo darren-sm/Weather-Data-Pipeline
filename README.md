@@ -10,7 +10,7 @@ This project is a data pipeline for [NOAA Integrated Surface Database (ISD)](htt
 
 ![dashboard](docs/dashboard.png)
 
-## ETL
+## ELT
 
 
 
